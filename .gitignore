@@ -1,0 +1,63 @@
+# ── Python ──────────────────────────────────────────────────────────────────
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+
+# ── Cocotb / Icarus / Verilator sim outputs ────────────────────────────────
+sim_build_*/
+results.xml
+*.vcd
+*.vvp
+*.vpp
+*.fst
+dump.fst
+
+# ── Vivado ──────────────────────────────────────────────────────────────────
+*.jou
+*.log
+*.str
+*.backup
+.Xil/
+.cache/
+.runs/
+.srcs/
+*.cache/
+*.runs/
+*.hw/
+*.ip_user_files/
+*.sim/
+vivado_*.backup.jou
+vivado_*.backup.log
+*.bit
+*.bin
+*.ltx
+
+# ── KiCad (if PCBs ever happen) ─────────────────────────────────────────────
+*-backups/
+*.kicad_pro-bak
+*.kicad_sch-bak
+fp-info-cache
+
+# ── Editor / IDE ────────────────────────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# ── OS junk ─────────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ── Claude Code local-only overrides ───────────────────────────────────────
+.claude/settings.local.json
+.claude/*.local.json
+
+# ── Plans (machine-local, lives outside repo anyway, but just in case) ─────
+.claude/plans/
