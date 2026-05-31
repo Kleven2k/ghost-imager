@@ -1,0 +1,3 @@
+# Local-only Claude Code state — don't commit
+settings.local.json
+*.local.json
