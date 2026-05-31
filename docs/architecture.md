@@ -10,6 +10,19 @@ Design spec for the FPGA computational ghost imaging (CGI) build on the Nexys Vi
 
 **Non-goals (deferred).** Final compressed-sensing algorithm (Phase 7), optical/mechanical layout, dual-modality scheduling between Ghost Imager and Ramsey, on-chip floating-point reconstruction, AXI/MIG integration.
 
+### Language & style
+
+**SystemVerilog** (IEEE 1800-2012 subset supported by Vivado). VHDL was considered for its stricter type system but rejected: cocotb is the verification strategy (§11), so SV's looseness is caught in Python tests rather than at compile, and the open-source SV tooling (Verilator, Icarus, yosys) is more mature than the VHDL equivalents for a solo project. If this codebase ever needs to ship into a regulated environment (defense, aerospace, submarine deployment), a rewrite is the smallest line item in that effort.
+
+To recover VHDL-like safety, the following rules are enforced on every file:
+
+- `` `default_nettype none `` at the top of every module — implicit nets become compile errors.
+- `always_ff` and `always_comb` only; never bare `always`.
+- `logic` only; never `reg` or `wire`.
+- Enums for all FSM states; packed structs for register maps and bus payloads.
+- `verilator --lint-only -Wall` runs on every commit (pre-commit hook), even though Verilator is not the primary simulator.
+- Every module has a cocotb testbench before it is integrated into `top.sv`.
+
 ---
 
 ## 2. Top-level block diagram
