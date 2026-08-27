@@ -163,19 +163,21 @@ For ±1 Hadamard differential mode, store the basis bit and conditionally add or
 
 **Line settings.** 8N1. 115200 baud for Phase-1 bring-up, parameterized baud-rate generator so we can move to 921600 once stable. Reuses `uart_tx`/`uart_rx` from `fpga-instruments-lib`.
 
-**Frame format.**
+**Frame format.** (As implemented in [`rtl/uart/uart_interface.sv`](../rtl/uart/uart_interface.sv).)
 ```
   ┌──────┬──────┬──────────┬─────────────┬──────────┐
-  │ SOF  │ TYPE │ LEN (LE) │   PAYLOAD   │ CRC16 LE │
-  │ 0xA5 │  1B  │   2 B    │   LEN bytes │   2 B    │
+  │ SOF  │ TYPE │ LEN (BE) │   PAYLOAD   │  CRC8    │
+  │ 0xAA │  1B  │   2 B    │   LEN bytes │   1 B    │
   └──────┴──────┴──────────┴─────────────┴──────────┘
 ```
-CRC-16/CCITT (poly 0x1021, init 0xFFFF) over TYPE + LEN + PAYLOAD.
+LEN is big-endian (high byte first). CRC is an 8-bit XOR over the PAYLOAD bytes
+only (not TYPE/LEN). The original CRC-16/CCITT plan was dropped in favour of the
+simpler XOR-8 the interface now implements; revisit if link errors warrant it.
 
 **TYPEs.**
 | TYPE | Direction | Payload |
 |---|---|---|
-| `0x01` | FPGA→PC | Partial-sum dump: 4096 × int32 LE (16384 B) |
+| `0x01` | FPGA→PC | Partial-sum dump: `n_pixels` × int32, big-endian (MSB first), one packet. Emitted by `uart_streamer`. |
 | `0x02` | FPGA→PC | Status: `{busy:1, done:1, overflow:1, mode:1, idx:16}` packed into 4 B |
 | `0x03` | FPGA→PC | Ack for a CSR write |
 | `0x10` | PC→FPGA | CSR write: `addr:8, value:32` |
@@ -293,3 +295,8 @@ Both projects use the same FSM template: an opcode list in BRAM (`{opcode:4, dur
 - **Differential bucket mode.** Reference photodiode picking off the laser before the DMD would let us normalize out laser intensity drift. Wire-in TBD on the optical bench.
 - **Negative-pattern (Hadamard ±1) strategy.** Two sub-frames per measurement (positive then negative) vs. dual-DMD vs. single-DMD with sign-bit-driven add/subtract in the correlator. Default plan: single-DMD with sign bit in the correlator (already provisioned in §6).
 - **Bank-parallel accumulator** (§6) — defer to post-Phase-4 optimization.
+- **`uart_streamer` scaling.** Three things are correct only at the current Stage-1 scale (accumulator depth == `PATTERN_WIDTH`, 32-bit words) and must be revisited when the correlator grows to a real 64×64 / 4096-pixel accumulator:
+  1. In `top.sv`, the dump `n_pixels` is hardwired to `PATTERN_WIDTH`. Once accumulator depth ≠ pattern-row width, this must come from a pixel-count parameter/CSR, not `PATTERN_WIDTH`.
+  2. `uart_streamer.rd_addr` is `$clog2(PATTERN_WIDTH)` bits; if `n_pixels` ever exceeds `PATTERN_WIDTH` the address wraps silently. Widen `rd_addr` to the accumulator depth.
+  3. The streamer FSM is hardcoded to 4-byte (`ACC_WIDTH=32`) words despite the "multiple of 8" comment — `byte_idx` is 2 bits and the staging logic only covers 4 bytes. Generalize or constrain the parameter if `ACC_WIDTH` changes.
+- **TX arbiter robustness.** The `top.sv` arbiter (csr_handler vs. uart_streamer onto one `uart_interface` TX) is verified only against half-duplex host behavior (no CSR command issued while a dump is in flight). The `pending_csr` path is designed to handle a mid-dump CSR send but has no dedicated test. Add an arbiter test that pipelines a CSR write during a dump before relying on it.
