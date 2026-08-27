@@ -9,6 +9,12 @@ RTL_PH_CNT = REPO_ROOT / "rtl"
 
 SOURCES = [
     REPO_ROOT / "rtl" / "lib" / "bram_dp.sv",
+    REPO_ROOT / "rtl" / "uart" / "uart_tx.sv",
+    REPO_ROOT / "rtl" / "uart" / "uart_rx.sv",
+    REPO_ROOT / "rtl" / "uart" / "uart_top.sv",
+    REPO_ROOT / "rtl" / "uart" / "uart_interface.sv",
+    REPO_ROOT / "rtl" / "csr" / "csr_handler.sv",
+    REPO_ROOT / "rtl" / "uart_streamer.sv",
     REPO_ROOT / "rtl" / "pattern_sequencer.sv",
     REPO_ROOT / "rtl" / "correlator.sv",
     REPO_ROOT / "rtl" / "top.sv",
@@ -25,9 +31,10 @@ def compile():
     cmd = [
         "iverilog", "-g2012",
         f"-I{RTL_PH_CNT}",
+        f"-I{RTL_PH_CNT / 'uart'}",
         "-o", str(VVP_FILE),
         "-s", "top_tb_wrapper",
-    ] + SOURCES
+    ] + [str(s) for s in SOURCES]
 
     r = subprocess.run(cmd, cwd=REPO_ROOT)
     if r.returncode != 0:
