@@ -35,15 +35,23 @@ module top #(
     input  wire logic uart_rx,
     output wire logic uart_tx,
 
-    // DMD subsystem
-    output logic                     pat_req,
-    output logic [PATTERN_WIDTH-1:0] pat_bits,
-    input  wire logic                dmd_ack,
-
     // Bucket detector
     output logic                         smp_gate,
     input  wire logic [BUCKET_WIDTH-1:0] b_i,
-    input  wire logic                    smp_valid
+    input  wire logic                    smp_valid,
+
+    // DLPC2607 I2C control — true open-drain pins; tristate driven inside
+    // this module (see i2c_master.sv's header for the oe/out/in rationale)
+    inout  wire  logic scl,
+    inout  wire  logic sda,
+    input  wire  logic gpio4_intf,  // DLPC2607 auto-init-busy pin, active high
+
+    // DLPC2607 parallel video
+    output logic        dmd_pclk,
+    output logic        dmd_hsync,
+    output logic        dmd_vsync,
+    output logic        dmd_dataen,
+    output logic [23:0] dmd_data
 );
 
     localparam logic [7:0] TYPE_DUMP_REQ = 8'h12;
@@ -140,6 +148,13 @@ module top #(
 
     logic [$clog2(N_PATTERNS_MAX)-1:0] pat_bram_addr;
     logic [PATTERN_WIDTH-1:0]          pat_bram_data;
+
+    // pat_req/pat_bits/dmd_ack are internal now: the DMD is driven by
+    // dmd_video_if's continuous video, not a request/ack handshake. See
+    // dmd_ack's tie-off below, near dmd_video_if's instantiation.
+    logic                     pat_req;
+    logic [PATTERN_WIDTH-1:0] pat_bits;
+    logic                     dmd_ack;
 
     pattern_sequencer #(
         .PATTERN_WIDTH (PATTERN_WIDTH),
@@ -311,5 +326,95 @@ module top #(
             end
         end
     end
+
+    // -- DMD: I2C init (power-up register writes) --------------------------
+    logic [7:0]  i2c_addr_w_rw;
+    logic [15:0] i2c_sub_addr;
+    logic        i2c_sub_len;
+    logic [23:0] i2c_byte_len;
+    logic        i2c_req_trans;
+    logic [7:0]  i2c_data_write;
+    logic        i2c_req_data_chunk;
+    logic        i2c_busy;
+    logic        i2c_nack;
+    logic        dmd_init_done;
+    logic        dmd_init_error;
+
+    dmd_init u_dmd_init (
+        .clk  (clk),
+        .rst_n(rst_n),
+
+        .gpio4_intf(gpio4_intf),
+
+        .i_addr_w_rw (i2c_addr_w_rw),
+        .i_sub_addr  (i2c_sub_addr),
+        .i_sub_len   (i2c_sub_len),
+        .i_byte_len  (i2c_byte_len),
+        .req_trans   (i2c_req_trans),
+        .i_data_write(i2c_data_write),
+
+        .req_data_chunk(i2c_req_data_chunk),
+        .busy          (i2c_busy),
+        .nack          (i2c_nack),
+
+        .init_done (dmd_init_done),
+        .init_error(dmd_init_error)
+    );
+
+    // dmd_init is currently the only thing on this I2C bus, so no arbiter
+    // is needed here (unlike the UART TX arbiter above) — revisit if a
+    // second I2C consumer shows up.
+    logic scl_oe, scl_out_w;
+    logic sda_oe, sda_out_w;
+    logic scl_in_w, sda_in_w;
+
+    i2c_master u_i2c (
+        .clk  (clk),
+        .rst_n(rst_n),
+
+        .i_addr_w_rw (i2c_addr_w_rw),
+        .i_sub_addr  (i2c_sub_addr),
+        .i_sub_len   (i2c_sub_len),
+        .i_byte_len  (i2c_byte_len),
+        .req_trans   (i2c_req_trans),
+        .i_data_write(i2c_data_write),
+
+        .data_out (),
+        .valid_out(),
+
+        .scl_oe(scl_oe), .scl_out(scl_out_w), .scl_in(scl_in_w),
+        .sda_oe(sda_oe), .sda_out(sda_out_w), .sda_in(sda_in_w),
+
+        .req_data_chunk(i2c_req_data_chunk),
+        .busy          (i2c_busy),
+        .nack          (i2c_nack)
+    );
+
+    assign scl     = scl_oe ? scl_out_w : 1'bz;
+    assign sda     = sda_oe ? sda_out_w : 1'bz;
+    assign scl_in_w = scl;
+    assign sda_in_w = sda;
+
+    // -- DMD: parallel video ------------------------------------------------
+    // No handshake with the video interface — pattern_sequencer's own
+    // t_settle_reg/t_sample_reg timers pace acquisition, so dmd_ack (its
+    // wait-for-DMD signal) is tied permanently high.
+    assign dmd_ack = 1'b1;
+
+    // dmd_video_if.pattern_in is hardcoded [63:0]; this only lines up with
+    // pat_bits when PATTERN_WIDTH==64 (the current default / Stage-1 design
+    // point). Revisit if PATTERN_WIDTH is ever changed at instantiation.
+    dmd_video_if u_dmd_video (
+        .clk  (clk),
+        .rst_n(rst_n),
+
+        .pattern_in(pat_bits),
+
+        .pclk_out(dmd_pclk),
+        .hsync   (dmd_hsync),
+        .vsync   (dmd_vsync),
+        .dataen  (dmd_dataen),
+        .data    (dmd_data)
+    );
 
 endmodule

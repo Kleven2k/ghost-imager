@@ -5,13 +5,13 @@
 ### is kept commented out below for future stages (LEDs, buttons, HDMI, etc.)
 ### — uncomment and rename get_ports as those peripherals get used.
 ###
-### pat_bits is PATTERN_WIDTH=64 bits wide (parallel bus to the DMD), but the
-### spare PMODs on this board only expose ~20 usable GPIO. The real DMD
-### electrical interface (almost certainly serial/DVI-like, not 64 parallel
-### wires) isn't chosen yet — see docs/shopping-list.md. Only pat_bits[19:0]
-### are pinned out here, just enough to get a full implementation run and see
-### timing/utilization on the real logic (CSR/UART/correlator/sequencer).
-### pat_bits[63:20] are intentionally left unconstrained.
+### dmd_data is 24 bits wide (RGB888), but the spare PMODs on this board
+### don't have that many free pins after gpio4_intf/pclk/hsync/vsync/dataen
+### are accounted for. Real DLPC2607 video timing (PCLK frequency, porch
+### widths) is still placeholder too — see rtl/dmd/dmd_video_if.sv's header
+### and docs/shopping-list.md. Only dmd_data[16:0] are pinned out here, just
+### enough to get a full implementation run and see timing/utilization on
+### the real logic. dmd_data[23:17] are intentionally left unconstrained.
 
 # ============================================================
 # Clock
@@ -113,44 +113,44 @@ set_false_path -from [get_ports { rst_n }]
 #set_property -dict { PACKAGE_PIN U6    IOSTANDARD LVCMOS33 } [get_ports { ac_mclk }]; #IO_L16P_T2_34 Sch=ac_mclk
 
 # ============================================================
-# Pmod header JA — active: pat_req / dmd_ack / smp_gate / smp_valid /
-#                   pat_bits[3:0] (see DMD note in file header)
+# Pmod header JA — active: gpio4_intf / dmd_pclk / smp_gate / smp_valid /
+#                   dmd_hsync / dmd_vsync / dmd_dataen / dmd_data[0]
 # ============================================================
-set_property -dict { PACKAGE_PIN AB22  IOSTANDARD LVCMOS33 } [get_ports { pat_req }];   #IO_L10N_T1_D15_14 Sch=ja[1]
-set_property -dict { PACKAGE_PIN AB21  IOSTANDARD LVCMOS33 } [get_ports { dmd_ack }];   #IO_L10P_T1_D14_14 Sch=ja[2]
+set_property -dict { PACKAGE_PIN AB22  IOSTANDARD LVCMOS33 } [get_ports { gpio4_intf }]; #IO_L10N_T1_D15_14 Sch=ja[1]
+set_property -dict { PACKAGE_PIN AB21  IOSTANDARD LVCMOS33 } [get_ports { dmd_pclk }];   #IO_L10P_T1_D14_14 Sch=ja[2]
 set_property -dict { PACKAGE_PIN AB20  IOSTANDARD LVCMOS33 } [get_ports { smp_gate }];  #IO_L15N_T2_DQS_DOUT_CSO_B_14 Sch=ja[3]
 set_property -dict { PACKAGE_PIN AB18  IOSTANDARD LVCMOS33 } [get_ports { smp_valid }]; #IO_L17N_T2_A13_D29_14 Sch=ja[4]
-set_property -dict { PACKAGE_PIN Y21   IOSTANDARD LVCMOS33 } [get_ports { pat_bits[0] }]; #IO_L9P_T1_DQS_14 Sch=ja[7]
-set_property -dict { PACKAGE_PIN AA21  IOSTANDARD LVCMOS33 } [get_ports { pat_bits[1] }]; #IO_L8N_T1_D12_14 Sch=ja[8]
-set_property -dict { PACKAGE_PIN AA20  IOSTANDARD LVCMOS33 } [get_ports { pat_bits[2] }]; #IO_L8P_T1_D11_14 Sch=ja[9]
-set_property -dict { PACKAGE_PIN AA18  IOSTANDARD LVCMOS33 } [get_ports { pat_bits[3] }]; #IO_L17P_T2_A14_D30_14 Sch=ja[10]
+set_property -dict { PACKAGE_PIN Y21   IOSTANDARD LVCMOS33 } [get_ports { dmd_hsync }];    #IO_L9P_T1_DQS_14 Sch=ja[7]
+set_property -dict { PACKAGE_PIN AA21  IOSTANDARD LVCMOS33 } [get_ports { dmd_vsync }];    #IO_L8N_T1_D12_14 Sch=ja[8]
+set_property -dict { PACKAGE_PIN AA20  IOSTANDARD LVCMOS33 } [get_ports { dmd_dataen }];   #IO_L8P_T1_D11_14 Sch=ja[9]
+set_property -dict { PACKAGE_PIN AA18  IOSTANDARD LVCMOS33 } [get_ports { dmd_data[0] }];  #IO_L17P_T2_A14_D30_14 Sch=ja[10]
 
 # ============================================================
-# Pmod header JB — active: pat_bits[11:4] (see DMD note in file header)
+# Pmod header JB — active: dmd_data[8:1] (see DMD note in file header)
 # ============================================================
-set_property -dict { PACKAGE_PIN V9    IOSTANDARD LVCMOS33 } [get_ports { pat_bits[4] }];  #IO_L21P_T3_DQS_34 Sch=jb_p[1]
-set_property -dict { PACKAGE_PIN V8    IOSTANDARD LVCMOS33 } [get_ports { pat_bits[5] }];  #IO_L21N_T3_DQS_34 Sch=jb_n[1]
-set_property -dict { PACKAGE_PIN V7    IOSTANDARD LVCMOS33 } [get_ports { pat_bits[6] }];  #IO_L19P_T3_34 Sch=jb_p[2]
-set_property -dict { PACKAGE_PIN W7    IOSTANDARD LVCMOS33 } [get_ports { pat_bits[7] }];  #IO_L19N_T3_VREF_34 Sch=jb_n[2]
-set_property -dict { PACKAGE_PIN W9    IOSTANDARD LVCMOS33 } [get_ports { pat_bits[8] }];  #IO_L24P_T3_34 Sch=jb_p[3]
-set_property -dict { PACKAGE_PIN Y9    IOSTANDARD LVCMOS33 } [get_ports { pat_bits[9] }];  #IO_L24N_T3_34 Sch=jb_n[3]
-set_property -dict { PACKAGE_PIN Y8    IOSTANDARD LVCMOS33 } [get_ports { pat_bits[10] }]; #IO_L23P_T3_34 Sch=jb_p[4]
-set_property -dict { PACKAGE_PIN Y7    IOSTANDARD LVCMOS33 } [get_ports { pat_bits[11] }]; #IO_L23N_T3_34 Sch=jb_n[4]
+set_property -dict { PACKAGE_PIN V9    IOSTANDARD LVCMOS33 } [get_ports { dmd_data[1] }];  #IO_L21P_T3_DQS_34 Sch=jb_p[1]
+set_property -dict { PACKAGE_PIN V8    IOSTANDARD LVCMOS33 } [get_ports { dmd_data[2] }];  #IO_L21N_T3_DQS_34 Sch=jb_n[1]
+set_property -dict { PACKAGE_PIN V7    IOSTANDARD LVCMOS33 } [get_ports { dmd_data[3] }];  #IO_L19P_T3_34 Sch=jb_p[2]
+set_property -dict { PACKAGE_PIN W7    IOSTANDARD LVCMOS33 } [get_ports { dmd_data[4] }];  #IO_L19N_T3_VREF_34 Sch=jb_n[2]
+set_property -dict { PACKAGE_PIN W9    IOSTANDARD LVCMOS33 } [get_ports { dmd_data[5] }];  #IO_L24P_T3_34 Sch=jb_p[3]
+set_property -dict { PACKAGE_PIN Y9    IOSTANDARD LVCMOS33 } [get_ports { dmd_data[6] }];  #IO_L24N_T3_34 Sch=jb_n[3]
+set_property -dict { PACKAGE_PIN Y8    IOSTANDARD LVCMOS33 } [get_ports { dmd_data[7] }]; #IO_L23P_T3_34 Sch=jb_p[4]
+set_property -dict { PACKAGE_PIN Y7    IOSTANDARD LVCMOS33 } [get_ports { dmd_data[8] }]; #IO_L23N_T3_34 Sch=jb_n[4]
 
 # ============================================================
-# Pmod header JC — active: pat_bits[19:12] (see DMD note in file header)
+# Pmod header JC — active: dmd_data[16:9] (see DMD note in file header)
 # ============================================================
-set_property -dict { PACKAGE_PIN Y6    IOSTANDARD LVCMOS33 } [get_ports { pat_bits[12] }]; #IO_L18P_T2_34 Sch=jc_p[1]
-set_property -dict { PACKAGE_PIN AA6   IOSTANDARD LVCMOS33 } [get_ports { pat_bits[13] }]; #IO_L18N_T2_34 Sch=jc_n[1]
-set_property -dict { PACKAGE_PIN AA8   IOSTANDARD LVCMOS33 } [get_ports { pat_bits[14] }]; #IO_L22P_T3_34 Sch=jc_p[2]
-set_property -dict { PACKAGE_PIN AB8   IOSTANDARD LVCMOS33 } [get_ports { pat_bits[15] }]; #IO_L22N_T3_34 Sch=jc_n[2]
-set_property -dict { PACKAGE_PIN R6    IOSTANDARD LVCMOS33 } [get_ports { pat_bits[16] }]; #IO_L17P_T2_34 Sch=jc_p[3]
-set_property -dict { PACKAGE_PIN T6    IOSTANDARD LVCMOS33 } [get_ports { pat_bits[17] }]; #IO_L17N_T2_34 Sch=jc_n[3]
-set_property -dict { PACKAGE_PIN AB7   IOSTANDARD LVCMOS33 } [get_ports { pat_bits[18] }]; #IO_L20P_T3_34 Sch=jc_p[4]
-set_property -dict { PACKAGE_PIN AB6   IOSTANDARD LVCMOS33 } [get_ports { pat_bits[19] }]; #IO_L20N_T3_34 Sch=jc_n[4]
+set_property -dict { PACKAGE_PIN Y6    IOSTANDARD LVCMOS33 } [get_ports { dmd_data[9] }];  #IO_L18P_T2_34 Sch=jc_p[1]
+set_property -dict { PACKAGE_PIN AA6   IOSTANDARD LVCMOS33 } [get_ports { dmd_data[10] }]; #IO_L18N_T2_34 Sch=jc_n[1]
+set_property -dict { PACKAGE_PIN AA8   IOSTANDARD LVCMOS33 } [get_ports { dmd_data[11] }]; #IO_L22P_T3_34 Sch=jc_p[2]
+set_property -dict { PACKAGE_PIN AB8   IOSTANDARD LVCMOS33 } [get_ports { dmd_data[12] }]; #IO_L22N_T3_34 Sch=jc_n[2]
+set_property -dict { PACKAGE_PIN R6    IOSTANDARD LVCMOS33 } [get_ports { dmd_data[13] }]; #IO_L17P_T2_34 Sch=jc_p[3]
+set_property -dict { PACKAGE_PIN T6    IOSTANDARD LVCMOS33 } [get_ports { dmd_data[14] }]; #IO_L17N_T2_34 Sch=jc_n[3]
+set_property -dict { PACKAGE_PIN AB7   IOSTANDARD LVCMOS33 } [get_ports { dmd_data[15] }]; #IO_L20P_T3_34 Sch=jc_p[4]
+set_property -dict { PACKAGE_PIN AB6   IOSTANDARD LVCMOS33 } [get_ports { dmd_data[16] }]; #IO_L20N_T3_34 Sch=jc_n[4]
 
-set_false_path -to [get_ports { pat_req dmd_ack pat_bits[*] smp_gate }]
-set_false_path -from [get_ports { smp_valid }]
+set_false_path -to   [get_ports { dmd_pclk dmd_hsync dmd_vsync dmd_dataen dmd_data[*] smp_gate }]
+set_false_path -from [get_ports { gpio4_intf smp_valid }]
 
 # ============================================================
 # XADC Header — active: b_i[7:0] (bucket detector, used as plain GPIO)
@@ -320,9 +320,15 @@ set_false_path -from [get_ports { uart_rx }]
 #set_property -dict { PACKAGE_PIN U18   IOSTANDARD LVCMOS33 } [get_ports { sd_d[3] }]; #IO_L18N_T2_A11_D27_14 Sch=sd_d[3]
 #set_property -dict { PACKAGE_PIN V20   IOSTANDARD LVCMOS33 } [get_ports { sd_reset }]; #IO_L11N_T1_SRCC_14 Sch=sd_reset
 
-## I2C
-#set_property -dict { PACKAGE_PIN W5    IOSTANDARD LVCMOS33 } [get_ports { scl }]; #IO_L15N_T2_DQS_34 Sch=scl
-#set_property -dict { PACKAGE_PIN V5    IOSTANDARD LVCMOS33 } [get_ports { sda }]; #IO_L16N_T2_34 Sch=sda
+# ============================================================
+# I2C (DLPC2607 control) — true open-drain; internal weak pull-up as a
+# safety net in case the DLPC2607 board doesn't populate its own (verify
+# with a multimeter once hardware is in hand — see docs/shopping-list.md).
+# ============================================================
+set_property -dict { PACKAGE_PIN W5  IOSTANDARD LVCMOS33 PULLUP true } [get_ports { scl }]; #IO_L15N_T2_DQS_34 Sch=scl
+set_property -dict { PACKAGE_PIN V5  IOSTANDARD LVCMOS33 PULLUP true } [get_ports { sda }]; #IO_L16N_T2_34 Sch=sda
+set_false_path -to   [get_ports { scl sda }]
+set_false_path -from [get_ports { scl sda }]
 
 ## Voltage Adjust
 #set_property -dict { PACKAGE_PIN AA13  IOSTANDARD LVCMOS25 } [get_ports { set_vadj[0] }]; #IO_L3P_T0_DQS_13 Sch=set_vadj[0]

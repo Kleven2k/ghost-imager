@@ -40,6 +40,10 @@ read_verilog -sv rtl/lib/cdc_sync.sv
 read_verilog -sv rtl/correlator.sv
 read_verilog -sv rtl/pattern_sequencer.sv
 
+read_verilog -sv rtl/i2c/i2c_master.sv
+read_verilog -sv rtl/dmd/dmd_init.sv
+read_verilog -sv rtl/dmd/dmd_video_if.sv
+
 # Top level last
 read_verilog -sv rtl/top.sv
 
