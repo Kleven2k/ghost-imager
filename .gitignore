@@ -36,6 +36,10 @@ vivado_*.backup.log
 *.bit
 *.bin
 *.ltx
+clockInfo.txt
+
+# ── scripts/build.tcl output (timestamped runs/build_YYYYMMDD_HHMMSS/) ─────
+/runs/
 
 # ── KiCad (if PCBs ever happen) ─────────────────────────────────────────────
 *-backups/
