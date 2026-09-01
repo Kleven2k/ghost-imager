@@ -41,10 +41,10 @@ FPGA (Nexys Video Artix-7)
 │           └── Fires trigger to DMD, waits settling time, gates ADC sample
 │
 ├── DMD Interface
-│     └── SPI config + parallel RGB to DLPDLCR2000EVM (LightCrafter Display 2000)
+│     └── I2C register config + parallel RGB888 video timing to DLPDLCR2000EVM (LightCrafter Display 2000)
 │
 ├── Bucket Detector Chain
-│     └── FDS100 photodiode → OPA657 TIA → ADC (or comparator) → PMOD
+│     └── FDS100 photodiode → OPA657 TIA → on-chip XADC (integration in progress)
 │
 ├── Correlation Accumulator
 │     └── Fixed-point MAC: running sum of b_i * H_i per pixel, stored in BRAM
@@ -60,10 +60,10 @@ FPGA (Nexys Video Artix-7)
 | Component | Part | Notes |
 |---|---|---|
 | FPGA board | Digilent Nexys Video Artix-7 | Shared with Ramsey |
-| DMD | TI `DLPDLCR2000EVM` (LightCrafter Display 2000) | $119, Mouser. SPI config + parallel RGB |
+| DMD | TI `DLPDLCR2000EVM` (LightCrafter Display 2000) | $119, Mouser. I2C config + parallel RGB888 video |
 | Light source | 532 nm DPSS laser module (TTL mod) | Shared with Ramsey optical frontend; NIR pair added in Phase 2 |
-| Detector | FDS100 PIN photodiode + OPA657 DIY TIA | PMOD/ADC connection. APD dropped — see [shopping-list.md](docs/shopping-list.md) decision log |
-| ADC | On-board or external via PMOD | Integration mode for CGI bucket signal |
+| Detector | FDS100 PIN photodiode + OPA657 DIY TIA | APD dropped — see [shopping-list.md](docs/shopping-list.md) decision log |
+| ADC | On-chip XADC (Artix-7), single VAUX channel | Integration mode for CGI bucket signal; integration in progress |
 
 The detector frontend is designed to serve both CGI (linear integration mode) and Ramsey (photon counting mode) from the same hardware.
 
@@ -89,12 +89,12 @@ With structured sparsity assumptions, reconstruct from M << N measurements. Reco
 
 ## Build Roadmap
 
-- [ ] **Phase 1** — DMD controller: project a known static pattern, verify over SPI
-- [ ] **Phase 2** — ADC readout: verify bucket detector samples synchronously
-- [ ] **Phase 3** — Pattern + sample synchronizer: core timing loop FSM
-- [ ] **Phase 4** — BRAM accumulator: on-chip correlation sum
-- [ ] **Phase 5** — UART streaming: live partial reconstruction preview on PC
-- [ ] **Phase 6** — Hadamard basis + differential ghost imaging
+- [x] **Phase 1** — DMD controller: I2C register config (`dmd_init`) + parallel video timing (`dmd_video_if`), built on `i2c_master`, wired into `top.sv`
+- [ ] **Phase 2** — ADC readout: `xadc_interface` built and cocotb-tested standalone; not yet wired into `top.sv` or synced with the acquisition loop
+- [x] **Phase 3** — Pattern + sample synchronizer: `pattern_sequencer` FSM built, tested, integrated
+- [x] **Phase 4** — BRAM accumulator: `correlator` on-chip correlation sum, built, tested, integrated (bit-exact against a numpy reference in the Hadamard integration test)
+- [x] **Phase 5** — UART streaming: `uart_streamer` + `csr_handler` + `uart_interface`, built, tested, integrated with TX arbitration in `top.sv`
+- [ ] **Phase 6** — Hadamard basis (working end-to-end, see `test_hadamard_8x8`) + differential ghost imaging (not yet started)
 - [ ] **Phase 7** — Compressed sensing reconstruction (PC-side, Python)
 - [ ] **Phase 8** — Scaling toward thermal GI and eventual quantum GI
 
@@ -106,7 +106,7 @@ Ghost Imager and Ramsey share:
 
 - **FPGA board** — Nexys Video Artix-7
 - **Optical frontend** — same photodiode + OPA657 TIA and 532 nm laser (Ramsey adds an APD for its photon-counting path)
-- **SPI bus conventions** — ADF4351 (Ramsey MW source), APD bias controller, DMD all on compatible SPI masters
+- **Serial bus conventions** — I2C/SPI transport primitives kept library-friendly across projects (Ramsey's ADF4351 MW source and APD bias controller on SPI; Ghost Imager's DMD on I2C)
 - **Timing sequencer pattern** — pulse gating FSM structure is directly analogous
 - **Shared RTL primitives** — SPI master, UART controller, ADC interface live in [`fpga-instruments-lib`](https://github.com/)
 
@@ -119,17 +119,26 @@ The long-term integration goal is a dual-modality sensor: ghost imaging for opti
 ```
 ghost-imager/
 ├── rtl/
-│   ├── top.sv
+│   ├── top.sv                  synthesizable top
 │   ├── pattern_sequencer.sv
-│   ├── dmd_controller.sv
 │   ├── correlator.sv
-│   └── uart_streamer.sv
+│   ├── uart_streamer.sv
+│   ├── uart/                   uart_tx, uart_rx, uart_top, uart_interface
+│   ├── csr/                    csr_handler
+│   ├── i2c/                    i2c_master
+│   ├── dmd/                    dmd_init, dmd_video_if
+│   ├── xadc/                   xadc_interface
+│   └── lib/                    cdc_sync, bram_dp
+├── ip/
+│   └── xadc_wiz_0/              generated XADC Wizard IP (scripts/gen_xadc_ip.tcl)
 ├── constraints/
 │   └── nexys_video.xdc
-├── sim/
-│   └── tb_pattern_sequencer.py       # cocotb
+├── sim/cocotb/                  mirrors rtl/ structure, one dir per module
+├── scripts/
+│   ├── build.tcl                 non-project Vivado batch build
+│   └── gen_xadc_ip.tcl           generates ip/xadc_wiz_0/
 ├── sw/
-│   └── reconstruct.py                # PC-side reconstruction + preview
+│   └── reconstruct.py            PC-side reconstruction + preview
 ├── docs/
 │   └── architecture.md
 └── README.md
