@@ -7,14 +7,22 @@
 // active area (each logical pixel -> an H_ACTIVE/8 x V_ACTIVE/8 block of
 // physical pixels). Bit=1 -> white (0xFFFFFF), bit=0 -> black (0x000000).
 //
-// TIMING IS PLACEHOLDER. The DLPC2607 programmer's guide (DLPU013) gives
-// register-level resolution selection but not raw electrical timing
-// (PCLK frequency, porch widths) — that lives in the ASIC datasheet
-// (DLPS030), which hasn't been reviewed yet. PCLK_HZ/H_*/V_* below are
-// reasonable placeholder values scaled from generic small-panel timing,
-// not numbers taken from a DLPC2607-specific source. Swap them for real
-// values once the datasheet timing table is in hand — the parameter list
-// is designed so that's a parameter change, not a re-architecture.
+// TIMING is chosen within real DLPC2607 electrical constraints (TI datasheet
+// DLPS030B, "Interface Timing Requirements", Tables 16-18), not a full TI
+// reference timing table -- TI does not publish one for nHD (no single
+// canonical porch/sync value set the way a VESA timing table would). TI
+// gives: PCLK 1-33.5MHz; H sync 4-128 PCLKs, H back porch >=4 PCLKs, H front
+// porch >=8 PCLKs; V sync >=1 line, V back porch >=2 lines, V front porch
+// >=1 line, total V blanking >=12 lines; nHD landscape max line rate 48kHz
+// (0.2" DMD, Table 18). Register 0x23 (Vertical Sync Line Delay, I2C,
+// default=5) additionally requires V_BACK_PORCH >= 7 lines unless that
+// register is reprogrammed -- dmd_init.sv does not currently touch it, so
+// this module's V_BACK_PORCH default respects the register's default.
+//
+// Defaults below (PCLK=25MHz, line rate ~36.3kHz, V blanking=14 lines) sit
+// with margin inside every constraint above; they are a design choice
+// within TI's bounds, not a TI-specified value, and can be retuned freely
+// as long as the same constraints are re-checked.
 //
 // PCLK is derived from clk via a simple divider (same pattern as
 // i2c_master's SCL_HZ divider): raster counters advance only on the
@@ -22,17 +30,17 @@
 // system clk per project convention, while producing a slower pixel rate.
 module dmd_video_if #(
     parameter int CLK_HZ  = 100_000_000,
-    parameter int PCLK_HZ = 25_000_000,  // PLACEHOLDER — real DLPC2607 PCLK unknown
+    parameter int PCLK_HZ = 25_000_000,  // within DLPC2607's 1-33.5MHz range; line rate 25e6/688 ~= 36.3kHz < 48kHz nHD max (Table 18)
 
     parameter int H_ACTIVE      = 640,
-    parameter int H_FRONT_PORCH = 16,    // PLACEHOLDER
-    parameter int H_SYNC_WIDTH  = 96,    // PLACEHOLDER
-    parameter int H_BACK_PORCH  = 48,    // PLACEHOLDER
+    parameter int H_FRONT_PORCH = 16,    // >= 8 PCLKs required (Table 16)
+    parameter int H_SYNC_WIDTH  = 16,    // within 4-128 PCLKs required (Table 16)
+    parameter int H_BACK_PORCH  = 16,    // >= 4 PCLKs required (Table 16)
 
     parameter int V_ACTIVE      = 360,
-    parameter int V_FRONT_PORCH = 10,    // PLACEHOLDER
-    parameter int V_SYNC_WIDTH  = 2,     // PLACEHOLDER
-    parameter int V_BACK_PORCH  = 33,    // PLACEHOLDER
+    parameter int V_FRONT_PORCH = 4,     // >= 1 line required (Table 16)
+    parameter int V_SYNC_WIDTH  = 2,     // >= 1 line required (Table 16)
+    parameter int V_BACK_PORCH  = 8,     // >= 7 lines: reg 0x23 default=5 requires tp_vbp >= 7 (Table 16 footnote 1)
 
     // DLPC2607 parallel bus polarity control (I2C: 0xAF) reset defaults:
     // HSYNC/VSYNC active-low, DATEN active-high.
