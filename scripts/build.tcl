@@ -44,6 +44,11 @@ read_verilog -sv rtl/i2c/i2c_master.sv
 read_verilog -sv rtl/dmd/dmd_init.sv
 read_verilog -sv rtl/dmd/dmd_video_if.sv
 
+read_verilog -sv rtl/xadc/xadc_interface.sv
+read_ip ip/xadc_wiz_0/xadc_wiz_0.xci
+generate_target all [get_ips xadc_wiz_0]
+synth_ip [get_ips xadc_wiz_0]
+
 # Top level last
 read_verilog -sv rtl/top.sv
 
