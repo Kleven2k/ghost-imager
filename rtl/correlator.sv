@@ -21,7 +21,7 @@
 
 module correlator #(
     parameter int PATTERN_WIDTH = 64,
-    parameter int BUCKET_WIDTH  = 16,
+    parameter int BUCKET_WIDTH  = 12,  // matches xadc_interface's sample width (do_out[15:4])
     parameter int ACC_WIDTH     = 32    // signed accumulator
 )(
     input  wire logic clk,

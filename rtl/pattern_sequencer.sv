@@ -15,7 +15,7 @@ module pattern_sequencer #(
     parameter int IMG_PIXELS     = 4096,    // 64x64 image (currently unused; for future use)
     parameter int PATTERN_WIDTH  = 64,      // BRAM row width
     parameter int N_PATTERNS_MAX = 4096,    // max patterns the BRAM can hold
-    parameter int BUCKET_WIDTH   = 16,      // bits in the bucket sample
+    parameter int BUCKET_WIDTH   = 12,      // matches xadc_interface's sample width (do_out[15:4])
     parameter int COUNTER_WIDTH  = 20       // wide enough for T_SETTLE / T_SAMPLE max values
 )(
     input  wire logic clk,

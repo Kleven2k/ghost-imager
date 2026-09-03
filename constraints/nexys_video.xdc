@@ -153,16 +153,27 @@ set_false_path -to   [get_ports { dmd_pclk dmd_hsync dmd_vsync dmd_dataen dmd_da
 set_false_path -from [get_ports { gpio4_intf smp_valid }]
 
 # ============================================================
-# XADC Header — active: b_i[7:0] (bucket detector, used as plain GPIO)
+# XADC Header — active: vauxp0/vauxn0 (bucket detector, VAUX0 differential
+# pair into the on-chip XADC via xadc_interface.sv). No IOSTANDARD/LVCMOS
+# selection needed in principle (these route through the dedicated analog
+# front-end mux, not SelectIO) -- LVCMOS33 kept here to match real, working
+# prior art (see docs/architecture.md XADC integration notes / the
+# cis_testbench_system reference project) rather than an untested inferred
+# convention. No set_false_path: analog pins have no setup/hold requirement.
+#
+# xa_p[2:4]/xa_n[2:4] (the other 3 differential pairs on this header) are
+# unused for now -- left uncommitted rather than wrongly constrained as
+# digital GPIO. Uncomment and add more VAUX channels to xadc_wiz_0's config
+# (scripts/gen_xadc_ip.tcl) if the bucket detector grows past one channel.
 # ============================================================
-set_property -dict { PACKAGE_PIN J14   IOSTANDARD LVCMOS12 } [get_ports { b_i[0] }]; #IO_L3P_T0_DQS_AD1P_15 Sch=xa_p[1]
-set_property -dict { PACKAGE_PIN H14   IOSTANDARD LVCMOS12 } [get_ports { b_i[1] }]; #IO_L3N_T0_DQS_AD1N_15 Sch=xa_n[1]
-set_property -dict { PACKAGE_PIN H13   IOSTANDARD LVCMOS12 } [get_ports { b_i[2] }]; #IO_L1P_T0_AD0P_15 Sch=xa_p[2]
-set_property -dict { PACKAGE_PIN G13   IOSTANDARD LVCMOS12 } [get_ports { b_i[3] }]; #IO_L1N_T0_AD0N_15 Sch=xa_n[2]
-set_property -dict { PACKAGE_PIN G15   IOSTANDARD LVCMOS12 } [get_ports { b_i[4] }]; #IO_L2P_T0_AD8P_15 Sch=xa_p[3]
-set_property -dict { PACKAGE_PIN G16   IOSTANDARD LVCMOS12 } [get_ports { b_i[5] }]; #IO_L2N_T0_AD8N_15 Sch=xa_n[3]
-set_property -dict { PACKAGE_PIN J15   IOSTANDARD LVCMOS12 } [get_ports { b_i[6] }]; #IO_L5P_T0_AD9P_15 Sch=xa_p[4]
-set_property -dict { PACKAGE_PIN H15   IOSTANDARD LVCMOS12 } [get_ports { b_i[7] }]; #IO_L5N_T0_AD9N_15 Sch=xa_n[4]
+set_property -dict { PACKAGE_PIN J14   IOSTANDARD LVCMOS33 } [get_ports { vauxp0 }]; #IO_L3P_T0_DQS_AD1P_15 Sch=xa_p[1]
+set_property -dict { PACKAGE_PIN H14   IOSTANDARD LVCMOS33 } [get_ports { vauxn0 }]; #IO_L3N_T0_DQS_AD1N_15 Sch=xa_n[1]
+#set_property -dict { PACKAGE_PIN H13   IOSTANDARD LVCMOS33 } [get_ports { vauxp1 }]; #IO_L1P_T0_AD0P_15 Sch=xa_p[2]
+#set_property -dict { PACKAGE_PIN G13   IOSTANDARD LVCMOS33 } [get_ports { vauxn1 }]; #IO_L1N_T0_AD0N_15 Sch=xa_n[2]
+#set_property -dict { PACKAGE_PIN G15   IOSTANDARD LVCMOS33 } [get_ports { vauxp2 }]; #IO_L2P_T0_AD8P_15 Sch=xa_p[3]
+#set_property -dict { PACKAGE_PIN G16   IOSTANDARD LVCMOS33 } [get_ports { vauxn2 }]; #IO_L2N_T0_AD8N_15 Sch=xa_n[3]
+#set_property -dict { PACKAGE_PIN J15   IOSTANDARD LVCMOS33 } [get_ports { vauxp3 }]; #IO_L5P_T0_AD9P_15 Sch=xa_p[4]
+#set_property -dict { PACKAGE_PIN H15   IOSTANDARD LVCMOS33 } [get_ports { vauxn3 }]; #IO_L5N_T0_AD9N_15 Sch=xa_n[4]
 
 # ============================================================
 # FMC — active: b_i[15:8] (bucket detector, used as plain GPIO)

@@ -17,12 +17,14 @@
 //
 // A dump is launched on receipt of a TYPE 0x12 (dump request) packet.
 //
-// DMD and bucket detector remain external ports (real board pins / TB stubs).
+// DMD remains external ports (real board pins / TB stubs). The bucket
+// detector's analog signal enters via vauxp0/vauxn0 and is digitized
+// on-chip by xadc_interface.sv (wraps the xadc_wiz_0 IP).
 
 module top #(
     parameter int PATTERN_WIDTH  = 64,
     parameter int N_PATTERNS_MAX = 4096,
-    parameter int BUCKET_WIDTH   = 16,
+    parameter int BUCKET_WIDTH   = 12,  // matches xadc_interface's sample width (do_out[15:4])
     parameter int ACC_WIDTH      = 32,
     parameter int COUNTER_WIDTH  = 20,
     parameter int CLK_HZ         = 100_000_000,
@@ -35,10 +37,12 @@ module top #(
     input  wire logic uart_rx,
     output wire logic uart_tx,
 
-    // Bucket detector
-    output logic                         smp_gate,
-    input  wire logic [BUCKET_WIDTH-1:0] b_i,
-    input  wire logic                    smp_valid,
+    // Bucket detector — VAUX0 differential pair into the on-chip XADC
+    // (xadc_interface.sv). smp_gate has no external counterpart: the XADC
+    // free-runs continuously and doesn't need triggering (see
+    // xadc_interface.sv's header), so it's tied off internally below.
+    input  wire logic vauxp0,
+    input  wire logic vauxn0,
 
     // DLPC2607 I2C control — true open-drain pins; tristate driven inside
     // this module (see i2c_master.sv's header for the oe/out/in rationale)
@@ -155,6 +159,14 @@ module top #(
     logic                     pat_req;
     logic [PATTERN_WIDTH-1:0] pat_bits;
     logic                     dmd_ack;
+
+    // smp_gate/b_i/smp_valid are internal now: the bucket sample comes from
+    // xadc_interface's continuous free-run loop, not an external gated
+    // handshake. smp_gate has no consumer (see xadc_interface's
+    // instantiation below) and is left unconnected.
+    logic                     smp_gate;
+    logic [BUCKET_WIDTH-1:0]  b_i;
+    logic                     smp_valid;
 
     pattern_sequencer #(
         .PATTERN_WIDTH (PATTERN_WIDTH),
@@ -415,6 +427,24 @@ module top #(
         .vsync   (dmd_vsync),
         .dataen  (dmd_dataen),
         .data    (dmd_data)
+    );
+
+    // -- Bucket detector: on-chip XADC ---------------------------------------
+    // xadc_interface free-runs continuously (see its header) rather than
+    // being triggered, so pattern_sequencer's smp_gate (its "I'm ready for
+    // a sample" window) has no XADC counterpart to drive. pattern_sequencer's
+    // SAMPLE state just needs t_sample_reg set long enough to guarantee at
+    // least one sample_valid pulse lands inside the window (~1us at the
+    // XADC's 1MSPS continuous rate).
+    xadc_interface u_xadc (
+        .clk   (clk),
+        .rst_n (rst_n),
+
+        .vauxp0(vauxp0),
+        .vauxn0(vauxn0),
+
+        .sample      (b_i),
+        .sample_valid(smp_valid)
     );
 
 endmodule

@@ -23,8 +23,11 @@ CYCLES_PER_BIT = 8       # CLK_HZ / BAUD = 1_000_000 / 125_000
 # Must match wrapper parameter defaults
 PATTERN_WIDTH  = 8
 N_PATTERNS_MAX = 16
-BUCKET_WIDTH   = 16
+BUCKET_WIDTH   = 12
 ACC_WIDTH      = 32
+
+# Must match sim/cocotb/xadc/xadc_interface/xadc_wiz_0_stub.sv's CONV_LATENCY
+XADC_CONV_LATENCY = 5
 
 # CSR addresses (architecture.md §8)
 ADDR_CTRL       = 0x00
@@ -53,11 +56,11 @@ async def start_clock(dut):
 
 
 async def reset(dut):
-    dut.rst_n.value     = 0
-    dut.uart_rx.value   = 1     # UART idle is high
-    dut.dmd_ack.value   = 0
-    dut.b_i.value       = 0
-    dut.smp_valid.value = 0
+    dut.rst_n.value      = 0
+    dut.uart_rx.value    = 1     # UART idle is high
+    dut.vauxp0.value     = 0
+    dut.vauxn0.value     = 0
+    dut.gpio4_intf.value = 0
     await ClockCycles(dut.clk, 4)
     dut.rst_n.value = 1
     await ClockCycles(dut.clk, 2)
@@ -151,38 +154,38 @@ def parse_frames(byte_list):
     return frames
 
 
-# ── DMD / bucket stubs ──────────────────────────────────────────────────────
-
-async def fake_dmd(dut, ack_latency=1):
-    prev_req = 0
-    while True:
-        await RisingEdge(dut.clk)
-        req = int(dut.pat_req.value)
-        if req == 1 and prev_req == 0:
-            for _ in range(ack_latency):
-                await RisingEdge(dut.clk)
-            dut.dmd_ack.value = 1
-            await RisingEdge(dut.clk)
-            dut.dmd_ack.value = 0
-            req = int(dut.pat_req.value)
-        prev_req = req
+# ── Bucket stub ──────────────────────────────────────────────────────────────
+# The DMD's old pat_req/dmd_ack handshake no longer exists as a top.sv port:
+# dmd_ack is tied permanently high inside top.sv now (dmd_video_if runs off
+# pattern_sequencer's own t_settle_reg/t_sample_reg timers, not a per-pattern
+# ack). Nothing needs to stub it.
+#
+# The bucket detector's xadc_wiz_0 IP is replaced by the behavioral stub
+# (see sim/cocotb/xadc/xadc_interface/xadc_wiz_0_stub.sv) that free-runs
+# continuously and returns whatever is in its stub_sample backdoor register.
+# Since xadc_interface has no external trigger (see its header), this
+# coroutine's only job is to keep stub_sample updated to the value that
+# should appear once pattern_sequencer's SAMPLE window opens -- the stub's
+# own free-run loop (period == XADC_CONV_LATENCY cycles) guarantees a
+# sample_valid pulse lands inside any t_sample window >= that period.
+def stub_sample_path(dut):
+    return dut.dut.u_xadc.u_xadc_wiz.stub_sample
 
 
 async def fake_bucket(dut, bucket_values):
+    """Advances stub_sample to the next bucket value each time
+    pattern_sequencer's SAMPLE state opens smp_gate. smp_gate has no
+    external port anymore (see top.sv), so this reads it via the debug
+    hierarchical path into pattern_sequencer's internal signal."""
     pattern_idx = 0
     prev_gate = 0
     while True:
         await RisingEdge(dut.clk)
-        gate = int(dut.smp_gate.value)
+        gate = int(dut.dut.u_seq.smp_gate.value)
         if gate == 1 and prev_gate == 0:
-            await ClockCycles(dut.clk, 2)
             if pattern_idx < len(bucket_values):
-                dut.b_i.value       = bucket_values[pattern_idx] & ((1 << BUCKET_WIDTH) - 1)
-                dut.smp_valid.value = 1
-                await RisingEdge(dut.clk)
-                dut.smp_valid.value = 0
+                stub_sample_path(dut).value = bucket_values[pattern_idx] & ((1 << BUCKET_WIDTH) - 1)
                 pattern_idx += 1
-            gate = int(dut.smp_gate.value)
         prev_gate = gate
 
 
@@ -214,11 +217,10 @@ def decode_dump(payload):
 
 
 async def run_acquisition_and_dump(dut, patterns, bucket_values,
-                                   t_settle, t_sample, dmd_latency):
+                                   t_settle, t_sample):
     backdoor_load_patterns(dut, patterns)
     backdoor_zero_accumulator(dut)
 
-    cocotb.start_soon(fake_dmd(dut, ack_latency=dmd_latency))
     cocotb.start_soon(fake_bucket(dut, bucket_values))
 
     rx_bytes = []
@@ -264,7 +266,7 @@ async def test_four_random_patterns(dut):
     bucket_values = [0x0010,     0x0020,     0x0030,     0x0040]
 
     rtl_acc = await run_acquisition_and_dump(
-        dut, patterns, bucket_values, t_settle=2, t_sample=5, dmd_latency=2)
+        dut, patterns, bucket_values, t_settle=2, t_sample=2 * XADC_CONV_LATENCY)
 
     expected = numpy_reconstruction(patterns, bucket_values)
     assert rtl_acc == expected.tolist(), \
@@ -294,7 +296,7 @@ async def test_hadamard_8x8(dut):
     bucket_values     = [int(np.dot(object_brightness, H_bin[i])) for i in range(8)]
 
     rtl_acc = await run_acquisition_and_dump(
-        dut, patterns, bucket_values, t_settle=2, t_sample=5, dmd_latency=1)
+        dut, patterns, bucket_values, t_settle=2, t_sample=2 * XADC_CONV_LATENCY)
 
     expected = numpy_reconstruction(patterns, bucket_values)
     print(f"\nObject:        {object_brightness.tolist()}")
@@ -332,7 +334,6 @@ async def test_csr_send_during_dump(dut):
 
     backdoor_load_patterns(dut, patterns)
     backdoor_zero_accumulator(dut)
-    cocotb.start_soon(fake_dmd(dut, ack_latency=1))
     cocotb.start_soon(fake_bucket(dut, bucket_values))
 
     rx_bytes = []
@@ -340,7 +341,7 @@ async def test_csr_send_during_dump(dut):
 
     await csr_write(dut, ADDR_N_PATTERNS, len(patterns))
     await csr_write(dut, ADDR_T_SETTLE,   2)
-    await csr_write(dut, ADDR_T_SAMPLE,   5)
+    await csr_write(dut, ADDR_T_SAMPLE,   2 * XADC_CONV_LATENCY)
     await csr_write(dut, ADDR_MODE,       0)
     await csr_write(dut, ADDR_CTRL,       1)
     await wait_for_done(dut)

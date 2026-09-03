@@ -17,6 +17,11 @@ SOURCES = [
     REPO_ROOT / "rtl" / "uart_streamer.sv",
     REPO_ROOT / "rtl" / "pattern_sequencer.sv",
     REPO_ROOT / "rtl" / "correlator.sv",
+    REPO_ROOT / "rtl" / "i2c" / "i2c_master.sv",
+    REPO_ROOT / "rtl" / "dmd" / "dmd_init.sv",
+    REPO_ROOT / "rtl" / "dmd" / "dmd_video_if.sv",
+    REPO_ROOT / "rtl" / "xadc" / "xadc_interface.sv",
+    REPO_ROOT / "sim" / "cocotb" / "xadc" / "xadc_interface" / "xadc_wiz_0_stub.sv",
     REPO_ROOT / "rtl" / "top.sv",
     SIM_DIR / "top_tb_wrapper.sv",
 ]
